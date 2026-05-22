@@ -21,9 +21,10 @@ Both tiers share the same system prompts, knowledge bases, and tool bindings thr
 
 ## Tools
 
-| Tool | Description | API Source |
-|------|-------------|------------|
-| [NVD CVE Lookup](tools/nvd_cve_lookup.py) | Query NIST NVD for CVE details, CVSS scores, affected products, and references. Supports single CVE lookup and keyword search. | [NVD API 2.0](https://nvd.nist.gov/developers/vulnerabilities) |
+| Tool | Type | Description |
+|------|------|-------------|
+| [NVD CVE Lookup](tools/nvd_cve_lookup.py) | Tool | Query NIST NVD for CVE details, CVSS scores, affected products, and references. Supports single CVE lookup and keyword search. |
+| [Config Sanitizer](tools/config_sanitizer.py) | Filter | Inlet filter that scrubs sensitive data (passwords, pre-shared keys, hashes, SNMP communities, serial numbers, certificates, API keys) from firewall configs and infrastructure exports before they reach the LLM. Optimized for SonicWall SonicOS but broadly applicable. |
 
 ### Planned Tools
 
@@ -72,6 +73,7 @@ See [docs/setup-guide.md](docs/setup-guide.md) for detailed setup instructions.
 ## Security Considerations
 
 - **No hardcoded secrets.** API keys are configured at runtime through Open WebUI's Valves system, never stored in code.
+- **Config sanitization.** The Config Sanitizer filter scrubs credentials, hashes, keys, and other sensitive material from infrastructure exports before they reach the LLM. Always verify redaction output before sharing analysis results externally.
 - **Tool execution.** Open WebUI tools execute Python on your server. Only install tools you've reviewed and trust.
 - **Network exposure.** If your Open WebUI instance is network-accessible, restrict access appropriately. These tools make outbound API calls to public services (NVD, etc.).
 
