@@ -7,7 +7,7 @@ Documents the current Ollama model inventory on wwwombat-ai, the rationale behin
 | Model | Tag | Size | Role |
 |---|---|---|---|
 | gemma4 | e4b | ~5GB | Daily driver — general analysis, triage, drafting |
-| hermes3 | 8b | ~5GB | Security research — uncensored, coursework assistant |
+| Hermes-4 | 14B-GGUF:Q5_K_M | ~10GB | Security research — uncensored, coursework assistant |
 | nomic-embed-text | latest | ~274MB | RAG embeddings — Knowledge collection retrieval |
 
 ---
@@ -28,7 +28,7 @@ Documents the current Ollama model inventory on wwwombat-ai, the rationale behin
 
 ---
 
-### hermes3:8b
+### Hermes-4-14B-GGUF:Q5_K_M
 
 **Role:** Security research and coursework assistant.
 
