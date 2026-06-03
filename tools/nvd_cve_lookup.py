@@ -1,7 +1,7 @@
 """
 title: NVD CVE Lookup
 author: Anonymous
-author_url: https://github.com/open-webui
+author_url: https://github.com/wwwombat
 description: Query the NIST National Vulnerability Database (NVD) API 2.0 for CVE details including CVSS scores, descriptions, affected products, and references. Supports both single CVE lookup and keyword-based vulnerability search.
 required_open_webui_version: 0.4.0
 requirements: httpx
@@ -52,7 +52,7 @@ class Tools:
             headers["apiKey"] = self.valves.nvd_api_key
 
         try:
-            async with httpx.AsyncClient(timeout=self.valves.request_timeout) as client:
+            async with httpx.AsyncClient(timeout=self.valves.request_timeout, http2=False) as client:
                 response = await client.get(url, headers=headers)
                 response.raise_for_status()
                 data = response.json()
@@ -73,19 +73,30 @@ class Tools:
         self,
         keyword: str,
         max_results: int = 10,
+        days_back: int = 365,
     ) -> str:
         """
         Search the National Vulnerability Database for CVEs matching a keyword or phrase.
         Useful for finding vulnerabilities related to a specific product, vendor, or technology.
+        Returns results sorted by most recent first.
         :param keyword: Search term, e.g. 'SonicWall', 'Apache Log4j', 'Microsoft Exchange'
         :param max_results: Maximum number of results to return (1-20, default 10)
+        :param days_back: How many days back to search (default 365, max 730)
         """
+        from datetime import datetime, timedelta, timezone
+
         max_results = max(1, min(20, max_results))
+        days_back = max(1, min(120, days_back))
+
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days_back)
 
         url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
         params = {
             "keywordSearch": keyword,
             "resultsPerPage": max_results,
+            "pubStartDate": start_date.strftime("%Y-%m-%dT00:00:00.000Z"),
+            "pubEndDate": end_date.strftime("%Y-%m-%dT00:00:00.000Z"),
         }
         headers = {"User-Agent": "OpenWebUI-NVD-Tool/1.0"}
 
@@ -93,7 +104,7 @@ class Tools:
             headers["apiKey"] = self.valves.nvd_api_key
 
         try:
-            async with httpx.AsyncClient(timeout=self.valves.request_timeout) as client:
+            async with httpx.AsyncClient(timeout=self.valves.request_timeout, http2=False) as client:
                 response = await client.get(url, params=params, headers=headers)
                 response.raise_for_status()
                 data = response.json()
@@ -109,7 +120,15 @@ class Tools:
             return f"No CVEs found matching '{keyword}'."
 
         results = []
-        results.append(f"Found {total} total CVEs matching '{keyword}' (showing up to {max_results}):\n")
+        results.append(
+            f"Found {total} total CVEs matching '{keyword}' (showing up to {max_results}):\n"
+        )
+
+        results.append(
+            "Note: Results limited to last " + str(days_back) + " days (NVD API max is 120 days). "
+            "Date range: " + start_date.strftime("%Y-%m-%d") + " to " + end_date.strftime("%Y-%m-%d") + ". "
+            "For older CVEs, use lookup_cve with a specific CVE ID or visit https://nvd.nist.gov directly.\n"
+        )
 
         for vuln in data.get("vulnerabilities", []):
             cve = vuln.get("cve", {})
@@ -217,16 +236,25 @@ class Tools:
                             vendor = parts[3].replace("_", " ").title()
                             product = parts[4].replace("_", " ").title()
                             version_start = match.get("versionStartIncluding", "")
-                            version_end = match.get("versionEndExcluding", match.get("versionEndIncluding", ""))
+                            version_end = match.get(
+                                "versionEndExcluding",
+                                match.get("versionEndIncluding", ""),
+                            )
                             version_info = parts[5] if parts[5] != "*" else ""
                             if version_start and version_end:
-                                affected.append(f"  {vendor} {product} ({version_start} to {version_end})")
+                                affected.append(
+                                    f"  {vendor} {product} ({version_start} to {version_end})"
+                                )
                             elif version_info:
                                 affected.append(f"  {vendor} {product} {version_info}")
                             else:
                                 affected.append(f"  {vendor} {product} (all versions)")
 
-        affected_str = "\n".join(affected[:15]) if affected else "  Not specified / awaiting analysis"
+        affected_str = (
+            "\n".join(affected[:15])
+            if affected
+            else "  Not specified / awaiting analysis"
+        )
 
         # References
         refs = []
@@ -249,3 +277,4 @@ class Tools:
             f"REFERENCES:\n{refs_str}\n\n"
             f"NVD Link: https://nvd.nist.gov/vuln/detail/{cve_id}"
         )
+

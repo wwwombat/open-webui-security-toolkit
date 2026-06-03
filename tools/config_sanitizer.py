@@ -199,7 +199,10 @@ class Filter:
                 total_counts[label] = total_counts.get(label, 0) + count
 
         if total_counts and self.valves.log_redactions:
-            summary = ", ".join(f"{label}: {count}" for label, count in total_counts.items())
+            summary = ", ".join(
+                f"{label}: {count}" for label, count in total_counts.items()
+            )
             log.info(f"[Security Sanitizer] Redactions applied: {summary}")
 
         return body
+
