@@ -1,7 +1,7 @@
 """
 title: MITRE ATT&CK Mapper
 author: wwwombat
-version: 1.3.0
+version: 1.4.0
 license: MIT
 description: >
   Query the MITRE ATT&CK Enterprise Matrix from a local STIX bundle.
@@ -190,25 +190,25 @@ class Tools:
         except Exception as e:
             return f"Failed to load ATT&CK data: {str(e)}"
 
-        matches = []
+        name_matches = []
+        desc_matches = []
         for obj in techniques:
             name = obj.get("name", "").lower()
             desc = obj.get("description", "").lower()
+            if keyword not in name and keyword not in desc:
+                continue
+            entry = {
+                "id": _get_ext_id(obj),
+                "name": obj.get("name", "Unknown"),
+                "tactics": _get_tactics(obj),
+                "description": obj.get("description", "")[:200].strip(),
+            }
+            if keyword in name:
+                name_matches.append(entry)
+            else:
+                desc_matches.append(entry)
 
-            if keyword in name or keyword in desc:
-                ext_id = _get_ext_id(obj)
-                tactics = _get_tactics(obj)
-                matches.append(
-                    {
-                        "id": ext_id,
-                        "name": obj.get("name", "Unknown"),
-                        "tactics": tactics,
-                        "description": obj.get("description", "")[:200].strip(),
-                    }
-                )
-
-            if len(matches) >= 5:
-                break
+        matches = (name_matches + desc_matches)[:5]
 
         if not matches:
             return f"No ATT&CK techniques found matching keyword: '{keyword}'"
