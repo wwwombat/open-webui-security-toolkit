@@ -1,7 +1,7 @@
 """
 title: MITRE ATT&CK Mapper
 author: wwwombat
-version: 1.2.0
+version: 1.3.0
 license: MIT
 description: >
   Query the MITRE ATT&CK Enterprise Matrix from a local STIX bundle.
@@ -21,8 +21,8 @@ CACHE_PATH = "/home/wwwombat/data/attack/enterprise-attack.json"
 
 
 @lru_cache(maxsize=1)
-def _load_attack_data() -> list:
-    """Load and cache the ATT&CK STIX bundle in memory on first call."""
+def _load_bundle() -> dict:
+    """Load STIX bundle once and return indexed lookup structures."""
     if not os.path.exists(CACHE_PATH):
         raise FileNotFoundError(
             f"ATT&CK bundle not found at {CACHE_PATH}. "
@@ -31,14 +31,40 @@ def _load_attack_data() -> list:
         )
     with open(CACHE_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
-    # Return only attack-pattern objects, filtering revoked/deprecated
-    return [
-        obj
-        for obj in data.get("objects", [])
-        if obj.get("type") == "attack-pattern"
-        and not obj.get("revoked")
-        and not obj.get("x_mitre_deprecated")
+
+    objects = data.get("objects", [])
+    obj_by_id = {o["id"]: o for o in objects}
+
+    techniques = [
+        o for o in objects
+        if o.get("type") == "attack-pattern"
+        and not o.get("revoked")
+        and not o.get("x_mitre_deprecated")
     ]
+
+    # Build index: technique STIX id -> list of detection-strategy objects
+    # v14+ replaced x_mitre_detection and x_mitre_data_sources with a graph:
+    #   detection-strategy --(detects)--> attack-pattern
+    #   detection-strategy --x_mitre_analytic_refs--> analytic
+    #   analytic --x_mitre_log_source_references.x_mitre_data_component_ref--> data-component
+    detection_index: dict[str, list] = {}
+    for o in objects:
+        if (
+            o.get("type") == "relationship"
+            and o.get("relationship_type") == "detects"
+            and not o.get("revoked", False)
+            and not o.get("x_mitre_deprecated", False)
+        ):
+            src = obj_by_id.get(o.get("source_ref", ""))
+            target_id = o.get("target_ref", "")
+            if src and src.get("type") == "x-mitre-detection-strategy":
+                detection_index.setdefault(target_id, []).append(src)
+
+    return {
+        "techniques": techniques,
+        "obj_by_id": obj_by_id,
+        "detection_index": detection_index,
+    }
 
 
 def _get_ext_id(obj: dict) -> str:
@@ -54,6 +80,61 @@ def _get_tactics(obj: dict) -> list:
         for phase in obj.get("kill_chain_phases", [])
         if phase.get("kill_chain_name") == "mitre-attack"
     ]
+
+
+def _get_data_sources(technique_stix_id: str) -> list[str]:
+    """Return sorted unique data component names for a technique via the v14+ graph."""
+    bundle = _load_bundle()
+    obj_by_id = bundle["obj_by_id"]
+    detection_index = bundle["detection_index"]
+
+    component_names: set[str] = set()
+    for strategy in detection_index.get(technique_stix_id, []):
+        for analytic_ref in strategy.get("x_mitre_analytic_refs", []):
+            analytic = obj_by_id.get(analytic_ref, {})
+            for log_src in analytic.get("x_mitre_log_source_references", []):
+                comp = obj_by_id.get(log_src.get("x_mitre_data_component_ref", ""), {})
+                if comp.get("name"):
+                    component_names.add(comp["name"])
+
+    return sorted(component_names)
+
+
+def _get_detection_text(technique_stix_id: str, description: str) -> str:
+    """Build detection guidance from v14+ detection strategies and analytics."""
+    bundle = _load_bundle()
+    obj_by_id = bundle["obj_by_id"]
+    strategies = bundle["detection_index"].get(technique_stix_id, [])
+
+    if not strategies:
+        return (
+            "[Detection field removed in ATT&CK v14+ STIX bundle — "
+            "see reference URL for current detection guidance]\n\n"
+            + description
+        )
+
+    lines = []
+    for strategy in strategies:
+        lines.append(f"**{strategy.get('name', 'Detection Strategy')}**")
+        for analytic_ref in strategy.get("x_mitre_analytic_refs", []):
+            analytic = obj_by_id.get(analytic_ref, {})
+            if not analytic or analytic.get("x_mitre_deprecated"):
+                continue
+            platforms = ", ".join(analytic.get("x_mitre_platforms", []))
+            desc = analytic.get("description", "")
+            log_src_parts = [
+                f"{ls.get('name', '')} ({ls.get('channel', '')})"
+                for ls in analytic.get("x_mitre_log_source_references", [])
+                if ls.get("name")
+            ]
+            entry = f"- {desc}"
+            if platforms:
+                entry += f" _[{platforms}]_"
+            lines.append(entry)
+            if log_src_parts:
+                lines.append(f"  _Log sources: {', '.join(log_src_parts)}_")
+
+    return "\n".join(lines)
 
 
 class Tools:
@@ -73,14 +154,14 @@ class Tools:
         technique_id = technique_id.strip().upper()
 
         try:
-            objects = _load_attack_data()
+            techniques = _load_bundle()["techniques"]
         except FileNotFoundError as e:
             return str(e)
         except Exception as e:
             return f"Failed to load ATT&CK data: {str(e)}"
 
         match = None
-        for obj in objects:
+        for obj in techniques:
             if _get_ext_id(obj).upper() == technique_id:
                 match = obj
                 break
@@ -103,14 +184,14 @@ class Tools:
         keyword = keyword.strip().lower()
 
         try:
-            objects = _load_attack_data()
+            techniques = _load_bundle()["techniques"]
         except FileNotFoundError as e:
             return str(e)
         except Exception as e:
             return f"Failed to load ATT&CK data: {str(e)}"
 
         matches = []
-        for obj in objects:
+        for obj in techniques:
             name = obj.get("name", "").lower()
             desc = obj.get("description", "").lower()
 
@@ -152,24 +233,22 @@ class Tools:
         """Format a STIX attack-pattern object into a readable report."""
         name = obj.get("name", "Unknown")
         description = obj.get("description", "No description available.")
-        detection = obj.get("x_mitre_detection") or (
-            f"[Detection field removed in ATT&CK v14+ STIX bundle — "
-            f"see reference URL for current detection guidance]\n\n{description}"
-            if description
-            else "No detection guidance available."
-        )
         is_subtechnique = obj.get("x_mitre_is_subtechnique", False)
         platforms = ", ".join(obj.get("x_mitre_platforms", [])) or "Unknown"
-        data_sources = ", ".join(obj.get("x_mitre_data_sources", [])) or "None listed"
         tactics_str = ", ".join(_get_tactics(obj)) or "Unknown"
+
+        # v14+: resolve data sources and detection via the detection-strategy graph
+        data_source_names = _get_data_sources(obj["id"])
+        data_sources = ", ".join(data_source_names) if data_source_names else "None listed"
+        detection = _get_detection_text(obj["id"], description)
 
         url_id = technique_id.replace(".", "/")
         url = f"https://attack.mitre.org/techniques/{url_id}/"
 
         if len(description) > 800:
             description = description[:800].strip() + "... [truncated]"
-        if len(detection) > 600:
-            detection = detection[:600].strip() + "..."
+        if len(detection) > 1500:
+            detection = detection[:1500].strip() + "... [truncated]"
 
         lines = [
             f"## MITRE ATT&CK: {technique_id} — {name}",
@@ -191,4 +270,3 @@ class Tools:
         ]
 
         return "\n".join(lines)
-
