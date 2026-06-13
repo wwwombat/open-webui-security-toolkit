@@ -107,11 +107,7 @@ def _get_detection_text(technique_stix_id: str, description: str) -> str:
     strategies = bundle["detection_index"].get(technique_stix_id, [])
 
     if not strategies:
-        return (
-            "[Detection field removed in ATT&CK v14+ STIX bundle — "
-            "see reference URL for current detection guidance]\n\n"
-            + description
-        )
+        return description
 
     lines = []
     for strategy in strategies:
@@ -134,7 +130,8 @@ def _get_detection_text(technique_stix_id: str, description: str) -> str:
             if log_src_parts:
                 lines.append(f"  _Log sources: {', '.join(log_src_parts)}_")
 
-    return "\n".join(lines)
+    detection = "\n".join(lines)
+    return detection if any(l.startswith("- ") for l in lines) else description
 
 
 class Tools:
