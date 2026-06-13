@@ -28,15 +28,15 @@ Documents the current Ollama model inventory on wwwombat-ai, the rationale behin
 
 ---
 
-### Hermes-4-14B-GGUF:Q5_K_M
+### Hermes-4-14B-GGUF:Q4_K_M (PENDING — currently swapped to qwen2.5:14b-instruct-q4_K_M)
 
 **Role:** Security research and coursework assistant.
 
-**Why this model:** Hermes 3 is an uncensored fine-tune that follows system prompt instructions without alignment refusals. This is the correct model for penetration testing research, offensive security coursework, and red team conceptual work where a standard aligned model would hedge or refuse. Network isolation (vmbr1, planned) is the architectural safety layer — not the model.
+**Why this model:** Hermes 3 is an uncensored fine-tune that follows system prompt instructions without alignment refusals.
 
 **Workspace:** Coursework Assistant
 
-**Key characteristic:** Unlike gemma4, Hermes 3 reliably follows strict formatting constraints in the system prompt. gemma4 was observed ignoring formatting rules during testing; Hermes 3 did not.
+**Key characteristic:** Unlike gemma4, Hermes 3 reliably follows strict formatting constraints in the system prompt.
 
 **Best for:**
 - Penetration testing coursework (Pen Testing I/II)
@@ -44,8 +44,9 @@ Documents the current Ollama model inventory on wwwombat-ai, the rationale behin
 - Red team concept development
 - Adversarial model behavior research
 
-**Deployment note:** Keep on local infrastructure only. Not routed through LiteLLM to cloud. Sensitive research stays on-premises.
+**Deployment note:** Keep on local infrastructure only. Not routed through LiteLLM to cloud. Sensitive research stays local.
 
+**Current status (as of June 2026):** Hermes-4-14B-GGUF:Q4_K_M is pending Ollama/CUDA compatibility (NVIDIA Driver 580 / CUDA 13.0). Coursework Assistant workspace is temporarily running **qwen2.5:14b-instruct-q4_K_M** as a substitute. Swap back to Hermes once compatibility is confirmed.
 ---
 
 ### nomic-embed-text
@@ -72,16 +73,13 @@ The following models were removed during the May 2026 optimization pass to recla
 > **Note on Dolphin:** dolphin3 was evaluated for red team research use (see `docs/research/dolphin-red-team-evaluation.md`). It is not a permanent stack member but can be pulled for specific research sessions. `ollama pull dolphin3:latest` when needed, `ollama rm dolphin3:latest` when done.
 
 ---
-
 ## Workspace → Model Mapping
 
 | Workspace | Base Model | Tools Enabled | Purpose |
 |---|---|---|---|
-| Cyber Analyst | gemma4:e4b | NVD CVE Lookup | Routine security analysis, triage |
+| Cyber Analyst | qwen2.5:14b-instruct-q4_K_M | NVD CVE Lookup | Routine security analysis, triage |
 | Cyber Analyst Pro | Claude Sonnet (via API) | NVD CVE Lookup, Web Search | Deep reasoning, compliance mapping |
-| Coursework Assistant | hermes3:8b | None | Security coursework, research |
-
----
+| Coursework Assistant | qwen2.5:14b-instruct-q4_K_M (temp, pending Hermes Q4_K_M CUDA fix) | None | Security coursework, research |
 
 ## Hardware Context
 
@@ -91,4 +89,3 @@ The following models were removed during the May 2026 optimization pass to recla
 
 The 12GB VRAM ceiling is the primary constraint on model selection. Models above ~8B parameters at 4-bit quantization risk spilling into system RAM, which causes a significant inference speed penalty (PCIe bandwidth vs. GPU bandwidth). Current stack is sized to keep all active inference in VRAM.
 
-**GPU upgrade under consideration:** RTX 5070 Ti (16GB GDDR7) would meaningfully expand the model size ceiling. RTX 5070 (12GB) assessed as a lateral move — same VRAM ceiling, not worth the cost.
