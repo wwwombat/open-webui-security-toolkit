@@ -1,0 +1,15 @@
+#!/bin/sh
+# Strip "Co-Authored-By: Claude ..." trailers from the commit message.
+# Fires on every commit (manual or tool-generated). Argument $1 is the
+# path to the file holding the proposed commit message.
+#
+# Enable in a fresh clone with:  git config core.hooksPath .githooks
+
+msg_file="$1"
+
+# 1. Remove any Co-authored-by line whose author is Claude (case-insensitive key).
+# 2. Collapse any blank lines left dangling at the end of the message.
+tmp="$msg_file.tmp"
+sed -E '/^[Cc]o-[Aa]uthored-[Bb]y:[[:space:]]*Claude/d' "$msg_file" \
+	| sed -e :a -e '/^\n*$/{$d;N;ba}' > "$tmp"
+mv "$tmp" "$msg_file"

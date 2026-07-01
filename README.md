@@ -81,6 +81,18 @@ See [docs/setup-guide.md](docs/setup-guide.md) for detailed setup instructions.
 
 Contributions welcome. If you build a security-relevant tool or model preset, open a PR.
 
+### Repository setup
+
+This repo ships git hooks in `.githooks/`. Git does not enable a repo's hooks
+automatically on clone, so after cloning run this once to activate them:
+
+```
+git config core.hooksPath .githooks
+```
+
+The `commit-msg` hook strips `Co-Authored-By: Claude ...` trailers from commit
+messages; other co-authors and trailers are preserved.
+
 ## License
 
 MIT
