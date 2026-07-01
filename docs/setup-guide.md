@@ -2,6 +2,21 @@
 
 This guide walks through setting up a cybersecurity-focused Open WebUI instance from scratch using a hybrid local/cloud architecture.
 
+## Getting the Toolkit
+
+Clone this repository, then enable its git hooks:
+
+```bash
+git clone https://github.com/wwwombat/open-webui-security-toolkit.git
+cd open-webui-security-toolkit
+git config core.hooksPath .githooks
+```
+
+Git does not activate a repository's hooks automatically on clone, so the
+`core.hooksPath` step above is required (run it once per clone). It enables the
+`commit-msg` hook in `.githooks/`, which strips `Co-Authored-By: Claude ...`
+trailers from commit messages while preserving human co-authors.
+
 ## Prerequisites
 
 ### Hardware
