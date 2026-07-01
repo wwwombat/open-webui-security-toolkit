@@ -3,13 +3,31 @@
 # Fires on every commit (manual or tool-generated). Argument $1 is the
 # path to the file holding the proposed commit message.
 #
+# Only trailers in the final paragraph (the trailer block at the end of the
+# message) are removed -- a line mentioning the trailer in the body prose is
+# left untouched. Human co-authors and other trailers are preserved.
+#
 # Enable in a fresh clone with:  git config core.hooksPath .githooks
 
 msg_file="$1"
-
-# 1. Remove any Co-authored-by line whose author is Claude (case-insensitive key).
-# 2. Collapse any blank lines left dangling at the end of the message.
 tmp="$msg_file.tmp"
-sed -E '/^[Cc]o-[Aa]uthored-[Bb]y:[[:space:]]*Claude/d' "$msg_file" \
-	| sed -e :a -e '/^\n*$/{$d;N;ba}' > "$tmp"
+
+# Pass 1 (awk): drop "Co-Authored-By: Claude" lines only when they fall in the
+# last paragraph. Strategy: buffer lines; on a blank line, flush the pending
+# paragraph verbatim (it is not the last one). Only the final buffered
+# paragraph -- the trailer block -- is filtered.
+awk '
+	function flush(filter,   i) {
+		for (i = 1; i <= n; i++) {
+			if (filter && buf[i] ~ /^[Cc]o-[Aa]uthored-[Bb]y:[[:space:]]*Claude/)
+				continue
+			print buf[i]
+		}
+		n = 0
+	}
+	/^[[:space:]]*$/ { flush(0); print; next }   # blank: previous para is not last
+	{ buf[++n] = $0 }
+	END { flush(1) }                             # last para: apply the filter
+' "$msg_file" \
+	| sed -e :a -e '/^\n*$/{$d;N;ba}' > "$tmp"   # Pass 2: trim trailing blank lines
 mv "$tmp" "$msg_file"
