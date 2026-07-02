@@ -1,7 +1,7 @@
 """
 title: MITRE ATT&CK Mapper
 author: wwwombat
-version: 1.1.0
+version: 1.2.0
 license: MIT
 description: >
   Query the MITRE ATT&CK Enterprise Matrix from a local STIX bundle.
@@ -17,19 +17,19 @@ import os
 from functools import lru_cache
 from pydantic import BaseModel, Field
 
-CACHE_PATH = "/home/wwwombat/data/attack/enterprise-attack.json"
+DEFAULT_CACHE_PATH = "/home/wwwombat/data/attack/enterprise-attack.json"
 
 
-@lru_cache(maxsize=1)
-def _load_attack_data() -> list:
-    """Load and cache the ATT&CK STIX bundle in memory on first call."""
-    if not os.path.exists(CACHE_PATH):
+@lru_cache(maxsize=4)
+def _load_attack_data(cache_path: str) -> list:
+    """Load and cache the ATT&CK STIX bundle in memory on first call (per path)."""
+    if not os.path.exists(cache_path):
         raise FileNotFoundError(
-            f"ATT&CK bundle not found at {CACHE_PATH}. "
+            f"ATT&CK bundle not found at {cache_path}. "
             f"Run: curl -L https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json "
-            f"-o {CACHE_PATH}"
+            f"-o {cache_path}"
         )
-    with open(CACHE_PATH, "r", encoding="utf-8") as f:
+    with open(cache_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     # Return only attack-pattern objects, filtering revoked/deprecated
     return [
@@ -57,7 +57,13 @@ def _get_tactics(obj: dict) -> list:
 
 class Tools:
     class Valves(BaseModel):
-        pass
+        stix_bundle_path: str = Field(
+            default=DEFAULT_CACHE_PATH,
+            description=(
+                "Path (inside the container) to the MITRE ATT&CK Enterprise "
+                "STIX bundle JSON. Must match the docker-compose volume mount."
+            ),
+        )
 
     def __init__(self):
         self.valves = self.Valves()
@@ -72,7 +78,7 @@ class Tools:
         technique_id = technique_id.strip().upper()
 
         try:
-            objects = _load_attack_data()
+            objects = _load_attack_data(self.valves.stix_bundle_path)
         except FileNotFoundError as e:
             return str(e)
         except Exception as e:
@@ -102,7 +108,7 @@ class Tools:
         keyword = keyword.strip().lower()
 
         try:
-            objects = _load_attack_data()
+            objects = _load_attack_data(self.valves.stix_bundle_path)
         except FileNotFoundError as e:
             return str(e)
         except Exception as e:
@@ -145,7 +151,20 @@ class Tools:
         """Format a STIX attack-pattern object into a readable report."""
         name = obj.get("name", "Unknown")
         description = obj.get("description", "No description available.")
-        detection = obj.get("x_mitre_detection", "No detection guidance available.")
+
+        # Many techniques (e.g. T1047) have an empty x_mitre_detection field.
+        # Fall back to the technique description so the Detection section is
+        # still useful rather than a bare "no guidance" line.
+        detection = (obj.get("x_mitre_detection") or "").strip()
+        detection_is_fallback = False
+        if not detection:
+            desc_fallback = (obj.get("description") or "").strip()
+            if desc_fallback:
+                detection = desc_fallback
+                detection_is_fallback = True
+            else:
+                detection = "No detection guidance available."
+
         is_subtechnique = obj.get("x_mitre_is_subtechnique", False)
         platforms = ", ".join(obj.get("x_mitre_platforms", [])) or "Unknown"
         data_sources = ", ".join(obj.get("x_mitre_data_sources", [])) or "None listed"
@@ -171,7 +190,11 @@ class Tools:
             description,
             "",
             "### Detection",
-            detection,
+            (
+                "_ATT&CK lists no dedicated detection guidance for this "
+                "technique; showing the technique description as a fallback._\n\n"
+                + detection
+            ) if detection_is_fallback else detection,
             "",
             f"**Reference:** {url}",
             "",

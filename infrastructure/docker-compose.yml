@@ -26,6 +26,10 @@ services:
       - "3000:8080"
     volumes:
       - open-webui:/app/backend/data
+      # MITRE ATT&CK STIX bundle for the mitre_attack_mapper tool (read-only).
+      # Mounted at the same path inside the container so the tool's
+      # stix_bundle_path valve default resolves without change.
+      - /home/wwwombat/data/attack/enterprise-attack.json:/home/wwwombat/data/attack/enterprise-attack.json:ro
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - ENABLE_RAG_WEB_SEARCH=true
