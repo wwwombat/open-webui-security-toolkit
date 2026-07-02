@@ -91,7 +91,12 @@ git config core.hooksPath .githooks
 ```
 
 The `commit-msg` hook strips `Co-Authored-By: Claude ...` trailers from commit
-messages; other co-authors and trailers are preserved.
+messages; other co-authors and trailers are preserved. Its behavior is covered
+by a test script:
+
+```
+.githooks/test-commit-msg.sh
+```
 
 ## License
 
