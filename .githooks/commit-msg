@@ -12,22 +12,28 @@
 msg_file="$1"
 tmp="$msg_file.tmp"
 
-# Pass 1 (awk): drop "Co-Authored-By: Claude" lines only when they fall in the
-# last paragraph. Strategy: buffer lines; on a blank line, flush the pending
-# paragraph verbatim (it is not the last one). Only the final buffered
-# paragraph -- the trailer block -- is filtered.
-awk '
-	function flush(filter,   i) {
-		for (i = 1; i <= n; i++) {
-			if (filter && buf[i] ~ /^[Cc]o-[Aa]uthored-[Bb]y:[[:space:]]*Claude/)
-				continue
-			print buf[i]
+# 1. Trim trailing blank lines so the trailer block is the true last paragraph.
+# 2. (awk) drop "Co-Authored-By: Claude" lines only in that final paragraph:
+#    buffer lines; a blank line flushes the pending paragraph verbatim (it is
+#    not the last one); only the final buffered paragraph is filtered.
+# 3. Trim trailing blank lines again in case the filter emptied the block.
+trim='
+:a
+/^\n*$/{$d;N;ba
+}'
+sed -e "$trim" "$msg_file" \
+	| awk '
+		function flush(filter,   i) {
+			for (i = 1; i <= n; i++) {
+				if (filter && buf[i] ~ /^[Cc]o-[Aa]uthored-[Bb]y:[[:space:]]*Claude/)
+					continue
+				print buf[i]
+			}
+			n = 0
 		}
-		n = 0
-	}
-	/^[[:space:]]*$/ { flush(0); print; next }   # blank: previous para is not last
-	{ buf[++n] = $0 }
-	END { flush(1) }                             # last para: apply the filter
-' "$msg_file" \
-	| sed -e :a -e '/^\n*$/{$d;N;ba}' > "$tmp"   # Pass 2: trim trailing blank lines
+		/^[[:space:]]*$/ { flush(0); print; next }
+		{ buf[++n] = $0 }
+		END { flush(1) }
+	' \
+	| sed -e "$trim" > "$tmp"
 mv "$tmp" "$msg_file"

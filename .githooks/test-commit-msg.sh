@@ -60,6 +60,10 @@ check "handles case-insensitive trailer key" \
 	"Subject\n\nco-authored-by: Claude Opus 4.8 <noreply@anthropic.com>\n" \
 	"Subject"
 
+check "strips trailer despite trailing blank lines after it" \
+	"Subject\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\n\n\n" \
+	"Subject"
+
 rm -f "$tmp"
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
