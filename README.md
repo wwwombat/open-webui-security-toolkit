@@ -25,14 +25,14 @@ Both tiers share the same system prompts, knowledge bases, and tool bindings thr
 |------|------|-------------|
 | [NVD CVE Lookup](tools/nvd_cve_lookup.py) | Tool | Query NIST NVD for CVE details, CVSS scores, affected products, and references. Supports single CVE lookup and keyword search. |
 | [Config Sanitizer](tools/config_sanitizer.py) | Filter | Inlet filter that scrubs sensitive data (passwords, pre-shared keys, hashes, SNMP communities, serial numbers, certificates, API keys) from firewall configs and infrastructure exports before they reach the LLM. Optimized for SonicWall SonicOS but broadly applicable. |
+| [MITRE ATT&CK Mapper](tools/mitre_attck_mapper.py) | Tool | Maps observed techniques and indicators to ATT&CK framework tactics, techniques, and mitigations. Resolves detection guidance via ATT&CK's v14+ detection-strategy → analytic → data-component graph, with a description fallback as a last resort. Runs against a locally cached STIX bundle — no external API calls, no rate limits. |
 
 ### Planned Tools
 
 - **Shodan Host Lookup** - Query Shodan for exposed services and known vulnerabilities on a given IP/host
 - **AbuseIPDB Checker** - Check IP reputation and abuse reports
-- **MITRE ATT&CK Mapper** - Map observed techniques to ATT&CK framework tactics and mitigations
 - **EPSS Score Lookup** - Fetch Exploit Prediction Scoring System probabilities for prioritization
-
+  
 ## Model Presets
 
 | Preset | Base Model | Use Case |
@@ -59,6 +59,20 @@ Both presets use the same system prompt and tool bindings -- the only difference
 4. Click **Save**
 5. (Optional) Click the gear icon to configure any API keys in the tool's Valves
 6. Navigate to **Workspace > Models**, edit your model preset, and enable the tool in the **Tools** section
+
+### MITRE ATT&CK Mapper Setup
+
+This tool reads from a local STIX bundle rather than calling out to MITRE's servers, so it needs the enterprise ATT&CK dataset present on disk before it'll return results.
+
+1. Download the current `enterprise-attack.json` STIX bundle from [MITRE/CTI](https://github.com/mitre/cti)
+2. Place it at `<data_dir>/attack/enterprise-attack.json` on the host
+3. Mount the parent data directory (not just the file) into the container via `docker-compose.yml`:
+```yaml
+   volumes:
+     - /path/to/data:/path/to/data:ro
+```
+   A directory mount matters here, not a single-file mount — Open WebUI's tool-update workflow copies files through that same path, and a single-file bind mount also won't pick up atomic-rename updates to the bundle.
+4. Restart the Open WebUI container to pick up the mount
 
 ### Installing a Model Preset
 
