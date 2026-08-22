@@ -1,6 +1,6 @@
 # Model Stack
 
-Documents the current Ollama model inventory on wwwombat-ai, the rationale behind each selection, and how they map to workspaces in Open WebUI.
+Documents the current Ollama model inventory on the inference host, the rationale behind each selection, and how they map to workspaces in Open WebUI.
 
 ## Current Models
 
@@ -84,7 +84,7 @@ The following models were removed during the May 2026 optimization pass to recla
 ## Hardware Context
 
 - **GPU:** RTX 3080 Ti 12GB VRAM
-- **RAM:** 32GB system / 24GB allocated to wwwombat-ai VM
+- **RAM:** 32GB system / 24GB allocated to the inference VM
 - **Swap:** Expanded from 4GB to 12GB to handle model spill under load
 
 The 12GB VRAM ceiling is the primary constraint on model selection. Models above ~8B parameters at 4-bit quantization risk spilling into system RAM, which causes a significant inference speed penalty (PCIe bandwidth vs. GPU bandwidth). Current stack is sized to keep all active inference in VRAM.

@@ -12,13 +12,12 @@ types that ChromaDB doesn't accept (`None`, nested dicts). This caused a `400: a
 'metadatas': Cannot convert Python object to MetadataValue` error for nearly all file
 types, so files were uploaded but never actually landed in the RAG knowledge base.
 
-FLOKI rsync is working fine — files arrive at
-`~/coursework/CYB-7163 - Cyber Security Practicum (Summer 2026)/` on schedule.
-The failure was in the OWUI → ChromaDB step, not the file sync.
+The upstream file sync was working fine — files arrived on schedule. The
+failure was in the OWUI → ChromaDB step, not the file sync.
 
 ### Current state after patch
 
-6 of 10 files in the CYB-7163 collection now ingest successfully. The 4 remaining
+6 of 10 files in the test collection now ingest successfully. The 4 remaining
 failures are `empty content` errors for files OWUI genuinely can't extract text from:
 - Blank test PDFs
 - Scanned PDFs without an OCR path triggered (word count ≥ 10 so OCR skipped, but
